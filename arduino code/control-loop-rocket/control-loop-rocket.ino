@@ -40,8 +40,12 @@ int yawServVal = 0, pitchServVal = 0;
 int yawServPin = 0, pitchServPin = 0;
 const float kP = 0.5, kD = 0.1, kI = 0;
 double setPointYaw, inputYaw, outputYaw, setPointPitch, inputPitch, outputPitch;
+
 PID pidYaw(&inputYaw, &outputYaw, &setPointYaw, Kp, Ki, Kd, DIRECT);
 PID pidPitch(&inputPitch, &outputPitch, &setPointPitch, Kp, Ki, Kd, DIRECT);
+
+const int PITCH_PIN = 0, YAW_PIN = 0;
+const int PITCH_SERV_START = 90, YAW_SERV_START = 90;
 
 // packet structure for InvenSense teapot demo
 uint8_t teapotPacket[14] = { '$', 0x02, 0,0, 0,0, 0,0, 0,0, 0x00, 0x00, '\r', '\n' };
@@ -62,8 +66,8 @@ void dmpDataReady() {
 // ================================================================
 
 void setup() {
-    yawServ.attach(0);
-    pitchServ.attach(1);
+    yawServ.attach(YAW_PIN);
+    pitchServ.attach(PITCH_PIN);
 
     // join I2C bus (I2Cdev library doesn't do this automatically)
     #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -144,9 +148,11 @@ void setup() {
 
     // Initialize the PID controller
     pidYaw.SetMode(AUTOMATIC);
-    pidYaw.SetOutputLimits(0, 180);
+    pidYaw.SetOutputLimits(-90, 90);
     pidPitch.SetMode(AUTOMATIC);
-    pidPitch.SetOutputLimits(0, 180);
+    pidPitch.SetOutputLimits(-90, 90);
+
+    // Set the yaw target and pitch target
     setPointYaw = T_YAW;
     setPointPitch = T_PITCH
 }
@@ -162,6 +168,7 @@ void loop() {
     if (!dmpReady) return;
     // read a packet from FIFO
   
+  // Grab ypr in radians
     if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet 
        
         #ifdef OUTPUT_READABLE_YAWPITCHROLL
@@ -170,21 +177,24 @@ void loop() {
             mpu.dmpGetGravity(&gravity, &q);
             mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
             
-            yaw = (ypr[0] * 180/M_PI);
-            pitch = (ypr[1] * 180/M_PI);
-            roll = (ypr[2] * 180/M_PI);
+            yaw = (ypr[0]);
+            pitch = (ypr[1]);
+            roll = (ypr[2]);
         #endif
         blinkState = !blinkState;
         digitalWrite(LED_PIN, blinkState);
     }
 
+  // Compute PID Loop 
   yawServVal = analogRead(yawServPin);
   pitchServVal = analogRead(pitchServPin);
   inputYaw = yaw;
   inputPitch = pitch;
   pidYaw.Compute();
   pidPitch.Compute();
-  yawServ.write(outputYaw);
-  pitchServ.write(outputPitch);
+  
+  // Command servo to position
+  yawServ.write(YAW_SERV_START + (outputYaw * 180/M_PI));
+  pitchServ.write(PITCH_SERV_START + (outputPitch * 180/M_PI));
 
 }
