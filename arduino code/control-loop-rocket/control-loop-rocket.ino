@@ -40,13 +40,22 @@ VectorFloat gravity;    // [x, y, z]            gravity vector
 float euler[3];         // [psi, theta, phi]    Euler angle container
 float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 
+bool flag = false;
+double launchTime = 0.0;
+double deployTime = 15000;
+int resetCount = 0;
+const int LOOPFORRESET = 10;
+const int outPort = 13;
+bool end = false;
+
 float yaw = 0, pitch = 0, roll = 0;
 const float T_YAW = 0, T_PITCH = 0, T_ROLL = 0;
 Servo yawServ, pitchServ;
 int yawServVal = 0, pitchServVal = 0;
 int yawServPin = 0, pitchServPin = 0;
-const float kP = 0.5, kD = 0.0, kI = 0;
+const float kP = 1.0, kD = 0.0, kI = 0;
 double setPointYaw, inputYaw, outputYaw, setPointPitch, inputPitch, outputPitch;
+long lastTime = 0;
 
 PID pidYaw(&inputYaw, &outputYaw, &setPointYaw, kP, kI, kD, DIRECT);
 PID pidPitch(&inputPitch, &outputPitch, &setPointPitch, kP, kP, kD, DIRECT);
@@ -73,6 +82,8 @@ void dmpDataReady() {
 // ================================================================
 
 void setup() {
+  pinMode(outPort, OUTPUT);
+  digitalWrite(outPort, LOW);
   yawServ.attach(4);
   pitchServ.attach(5);
       Serial.begin(115200);
@@ -89,7 +100,7 @@ void setup() {
     }
   }
   Serial.println("MPU6050 Found!");
-
+  
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   Serial.print("Accelerometer range set to: ");
   switch (mpu.getAccelerometerRange()) {
@@ -122,8 +133,8 @@ void setup() {
     Serial.println("+- 2000 deg/s");
     break;
   }
-
-  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+  
+  mpu.setFilterBandwidth(MPU6050_BAND_260_HZ);
   Serial.print("Filter bandwidth set to: ");
   switch (mpu.getFilterBandwidth()) {
   case MPU6050_BAND_260_HZ:
@@ -170,28 +181,69 @@ void setup() {
 // ================================================================
 
 void loop() {
-    // if programming failed, don't try to do anything
   long start_time = millis();
+  if (!end)
+  {
+    // if programming failed, don't try to do anything
   sensors_event_t a, g, temp;
+  
   mpu.getEvent(&a, &g, &temp);
-  double dyaw = g.gyro.x;
-  double dpitch = g.gyro.y-0.05;
-  yaw += dyaw * (5) / 1000.0;
-  pitch += dpitch * (5) / 1000.0;
+  resetCount++;
+  
 
-  // Compute PID Loop 
-  yawServVal = analogRead(yawServPin);
-  pitchServVal = analogRead(pitchServPin);
-  inputYaw = yaw;
-  inputPitch = pitch;
-  pidYaw.Compute();
-  pidPitch.Compute();
-  //Serial.println((String)outputYaw);
-  Serial.println((String)outputPitch);
+  if (a.acceleration.z > 8.0 && !flag) {
+      // mpu.setGyroStandby(true, true, true);
+    if (resetCount % LOOPFORRESET == 0)
+    Serial.println((String) a.acceleration.z);
+  }
+  else {
+    // mpu.setGyroStandby(false, false, false);
+    if (!flag) {
+      yaw = 0.0;
+      pitch = 0.0;
+      launchTime =  millis() / 1000.0;
+    lastTime = micros();
+    }
+    flag = true;
+  }
   
-  // Command servo to position
-  yawServ.write(YAW_SERV_START + (outputYaw * 180/M_PI));
-  pitchServ.write(PITCH_SERV_START + (outputPitch * 180/M_PI));
-  
-  while(millis() < start_time + 5);
+  if (flag) {
+    double dyaw = g.gyro.x;
+    double dpitch = g.gyro.y;
+    double deadBand = 0.00;
+    // if(dyaw <= deadBand && yaw >= -deadBand)
+    //   dyaw = 0;
+    // if(dpitch <= deadBand && dpitch >= -deadBand)
+    //   dpitch = 0;
+    dyaw = dyaw * (double)(micros() - lastTime) / 1000000.0;
+    dpitch = dpitch * (double)(micros() - lastTime) / 1000000.0;
+    yaw += dyaw;
+    pitch += dpitch;
+
+    if (resetCount % LOOPFORRESET == 0)
+    Serial.println((String) yaw);
+    lastTime = micros();
+
+    // Compute PID Loop 
+    yawServVal = analogRead(yawServPin);
+    pitchServVal = analogRead(pitchServPin);
+    inputYaw = yaw;
+    inputPitch = pitch;
+    outputYaw = inputYaw * kP;
+    outputPitch = inputPitch * kP;
+    //Serial.println((String)outputYaw);
+    // Serial.println((String)outputPitch);
+    
+    // Command servo to position
+    yawServ.write(YAW_SERV_START + (outputYaw * 180.0/M_PI));
+    pitchServ.write(PITCH_SERV_START + (outputPitch * 180.0/M_PI));
+  }
+  }
+  if (deployTime < millis() - launchTime && flag) {
+    digitalWrite(outPort, HIGH);
+    flag = false;
+    while(true);
+    end = true;
+  }
+  while(millis() < start_time + 1.0);
 }
