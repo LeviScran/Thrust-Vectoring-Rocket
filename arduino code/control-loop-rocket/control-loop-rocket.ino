@@ -53,7 +53,7 @@ const float T_YAW = 0, T_PITCH = 0, T_ROLL = 0;
 Servo yawServ, pitchServ;
 int yawServVal = 0, pitchServVal = 0;
 int yawServPin = 0, pitchServPin = 0;
-const float kP = 1.0, kD = 0.0, kI = 0;
+const float kP = 2.0, kD = 0.0, kI = 0;
 double setPointYaw, inputYaw, outputYaw, setPointPitch, inputPitch, outputPitch;
 long lastTime = 0;
 
@@ -201,8 +201,8 @@ void loop() {
     if (!flag) {
       yaw = 0.0;
       pitch = 0.0;
-      launchTime =  millis() / 1000.0;
-    lastTime = micros();
+      launchTime =  millis();
+      lastTime = micros();
     }
     flag = true;
   }
