@@ -53,9 +53,11 @@ const float T_YAW = 0, T_PITCH = 0, T_ROLL = 0;
 Servo yawServ, pitchServ;
 int yawServVal = 0, pitchServVal = 0;
 int yawServPin = 0, pitchServPin = 0;
-const float kP = 2.0, kD = 0.0, kI = 0;
+const float kP = 2.0, kD = 0.5, kI = 0;
 double setPointYaw, inputYaw, outputYaw, setPointPitch, inputPitch, outputPitch;
 long lastTime = 0;
+double offYaw = 0, offPitch = 0, offRoll = 0;
+int count = 0;
 
 PID pidYaw(&inputYaw, &outputYaw, &setPointYaw, kP, kI, kD, DIRECT);
 PID pidPitch(&inputPitch, &outputPitch, &setPointPitch, kP, kP, kD, DIRECT);
@@ -191,10 +193,13 @@ void loop() {
   resetCount++;
   
 
-  if (a.acceleration.z > 8.0 && !flag) {
+  if (a.acceleration.y > 8.0 && !flag) {
+    count++;
+    offYaw += g.gyro.x;
+    offPitch += g.gyro.z;
       // mpu.setGyroStandby(true, true, true);
     if (resetCount % LOOPFORRESET == 0)
-    Serial.println((String) a.acceleration.z);
+      Serial.println((String) a.acceleration.z);
   }
   else {
     // mpu.setGyroStandby(false, false, false);
@@ -203,14 +208,18 @@ void loop() {
       pitch = 0.0;
       launchTime =  millis();
       lastTime = micros();
+      offYaw /= count;
+      offPitch /= count;
     }
     flag = true;
   }
   
   if (flag) {
-    double dyaw = g.gyro.x;
-    double dpitch = g.gyro.y;
+    double dyaw = g.gyro.x - offYaw;
+    double dpitch = g.gyro.z - offPitch;
     double deadBand = 0.00;
+    double dYaw = dyaw;
+    double dPitch = dpitch;
     // if(dyaw <= deadBand && yaw >= -deadBand)
     //   dyaw = 0;
     // if(dpitch <= deadBand && dpitch >= -deadBand)
@@ -229,8 +238,8 @@ void loop() {
     pitchServVal = analogRead(pitchServPin);
     inputYaw = yaw;
     inputPitch = pitch;
-    outputYaw = inputYaw * kP;
-    outputPitch = inputPitch * kP;
+    outputYaw = inputYaw * kP + dYaw * kD;
+    outputPitch = inputPitch * kP + dPitch * kD;
     //Serial.println((String)outputYaw);
     // Serial.println((String)outputPitch);
     
