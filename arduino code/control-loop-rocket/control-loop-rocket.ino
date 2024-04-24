@@ -42,18 +42,19 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 
 bool flag = false;
 double launchTime = 0.0;
-double deployTime = 15000;
+double deployTime = 5500;
 int resetCount = 0;
 const int LOOPFORRESET = 10;
 const int outPort = 13;
 bool end = false;
+bool beg = true;
 
 float yaw = 0, pitch = 0, roll = 0;
 const float T_YAW = 0, T_PITCH = 0, T_ROLL = 0;
 Servo yawServ, pitchServ;
 int yawServVal = 0, pitchServVal = 0;
 int yawServPin = 0, pitchServPin = 0;
-const float kP = 2.0, kD = 0.5, kI = 0;
+const float kP = 0.2, kD = 0.1, kI = 0;
 double setPointYaw, inputYaw, outputYaw, setPointPitch, inputPitch, outputPitch;
 long lastTime = 0;
 double offYaw = 0, offPitch = 0, offRoll = 0;
@@ -183,23 +184,33 @@ void setup() {
 // ================================================================
 
 void loop() {
-  long start_time = millis();
-  if (!end)
-  {
-    // if programming failed, don't try to do anything
+  // if programming failed, don't try to do anything
   sensors_event_t a, g, temp;
   
   mpu.getEvent(&a, &g, &temp);
+
+  long start_time = millis();
+  if (beg) {
+    // Command servo to position
+    yawServ.write(YAW_SERV_START + (start_time / 500.0));
+    pitchServ.write(PITCH_SERV_START + (start_time / 500.0));
+    if (start_time > 15000) {
+      beg = false;
+      yawServ.write(90);
+      pitchServ.write(90);
+    }
+  }
+  if (!end && !beg)
+  {
   resetCount++;
   
 
-  if (a.acceleration.y > 8.0 && !flag) {
+      Serial.println((String) a.acceleration.y);
+  if (a.acceleration.y > -8.0 && !flag) {
     count++;
     offYaw += g.gyro.x;
     offPitch += g.gyro.z;
       // mpu.setGyroStandby(true, true, true);
-    if (resetCount % LOOPFORRESET == 0)
-      Serial.println((String) a.acceleration.z);
   }
   else {
     // mpu.setGyroStandby(false, false, false);
@@ -230,7 +241,7 @@ void loop() {
     pitch += dpitch;
 
     if (resetCount % LOOPFORRESET == 0)
-    Serial.println((String) yaw);
+    // Serial.println((String) g.gyro.x);
     lastTime = micros();
 
     // Compute PID Loop 
