@@ -54,7 +54,7 @@ const float T_YAW = 0, T_PITCH = 0, T_ROLL = 0;
 Servo yawServ, pitchServ;
 int yawServVal = 0, pitchServVal = 0;
 int yawServPin = 0, pitchServPin = 0;
-const float kP = 0.2, kD = 0.1, kI = 0;
+const float kP = 0.2, kD = 0.05, kI = 0;
 double setPointYaw, inputYaw, outputYaw, setPointPitch, inputPitch, outputPitch;
 long lastTime = 0;
 double offYaw = 0, offPitch = 0, offRoll = 0;
@@ -192,9 +192,9 @@ void loop() {
   long start_time = millis();
   if (beg) {
     // Command servo to position
-    yawServ.write(YAW_SERV_START + (start_time / 500.0));
-    pitchServ.write(PITCH_SERV_START + (start_time / 500.0));
-    if (start_time > 15000) {
+    yawServ.write(60);
+    pitchServ.write(60);
+    if (start_time > 60000) {
       beg = false;
       yawServ.write(90);
       pitchServ.write(90);
@@ -205,8 +205,8 @@ void loop() {
   resetCount++;
   
 
-      Serial.println((String) a.acceleration.y);
-  if (a.acceleration.y > -8.0 && !flag) {
+  if (a.acceleration.y < -8.0 && !flag) {
+    Serial.println((String) a.acceleration.y);
     count++;
     offYaw += g.gyro.x;
     offPitch += g.gyro.z;
@@ -226,8 +226,8 @@ void loop() {
   }
   
   if (flag) {
-    double dyaw = g.gyro.x - offYaw;
-    double dpitch = g.gyro.z - offPitch;
+    double dyaw = g.gyro.x;
+    double dpitch = g.gyro.z;
     double deadBand = 0.00;
     double dYaw = dyaw;
     double dPitch = dpitch;
@@ -240,6 +240,7 @@ void loop() {
     yaw += dyaw;
     pitch += dpitch;
 
+    Serial.println((String) yaw);
     if (resetCount % LOOPFORRESET == 0)
     // Serial.println((String) g.gyro.x);
     lastTime = micros();
@@ -262,6 +263,9 @@ void loop() {
   if (deployTime < millis() - launchTime && flag) {
     digitalWrite(outPort, HIGH);
     flag = false;
+    delay(100);
+    
+    digitalWrite(outPort, LOW);
     while(true);
     end = true;
   }
